@@ -4,6 +4,9 @@ plugins {
     id("xyz.jpenilla.run-paper") version "3.1.0"
 }
 
+group = "me.HenRun189"
+version = "1.0-SNAPSHOT"
+
 repositories {
     mavenCentral()
     maven("https://repo.papermc.io/repository/maven-public/")
@@ -14,7 +17,7 @@ dependencies {
 }
 
 java {
-    toolchain.languageVersion = JavaLanguageVersion.of(25)
+    toolchain.languageVersion.set(JavaLanguageVersion.of(25))
 }
 
 tasks {
@@ -23,15 +26,14 @@ tasks {
     }
 
     runServer {
-        // Configure the Minecraft version for our task.
-        // This is the only required configuration besides applying the plugin.
-        // Your plugin's jar (or shadowJar if present) will be used automatically.
         minecraftVersion("26.3")
         jvmArgs("-Xms2G", "-Xmx2G", "-Dcom.mojang.eula.agree=true")
     }
 
     processResources {
-        val props = mapOf("version" to version)
+        val props = mapOf("version" to project.version)
+        inputs.properties(props)
+        filteringCharset = "UTF-8"
         filesMatching("paper-plugin.yml") {
             expand(props)
         }

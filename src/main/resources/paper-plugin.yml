@@ -1,8 +1,4 @@
 name: MC_Suvival
 version: '${version}'
-
 main: me.HenRun189.mC_Suvival.MC_Suvival
-bootstrapper: me.HenRun189.mC_Suvival.MC_SuvivalBootstrap
-loader: me.HenRun189.mC_Suvival.MC_SuvivalLoader
 api-version: '26.3'
-load: POSTWORLD
