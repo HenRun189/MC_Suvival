@@ -1,8 +1,12 @@
 package me.HenRun189.mC_Suvival;
 
 import com.destroystokyo.paper.event.player.PlayerJumpEvent;
+import com.mojang.brigadier.Command;
+import io.papermc.paper.command.brigadier.Commands;
 import io.papermc.paper.event.entity.EntityEquipmentChangedEvent;
 import io.papermc.paper.event.player.PlayerArmSwingEvent;
+import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
+import me.HenRun189.mC_Suvival.economy.MoneyItem;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -39,6 +43,7 @@ import org.bukkit.util.Vector;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -81,6 +86,9 @@ public final class MC_Suvival extends JavaPlugin implements Listener {
      */
     private Advancement elytraAdvancement;
 
+    /** Physische Server-Waehrung: erzeugt und identifiziert die Server Coins. */
+    private MoneyItem moneyItem;
+
     @Override
     public void onEnable() {
         spawnElytraKey = new NamespacedKey(this, "spawn_elytra");
@@ -90,10 +98,56 @@ public final class MC_Suvival extends JavaPlugin implements Listener {
                     + "das Zuruecksetzen bei Spawn-Elytra-Fluegen ist deaktiviert.");
         }
 
+        this.moneyItem = new MoneyItem(this);
+        registerCommands();
+
         getServer().getPluginManager().registerEvents(this, this);
         getLogger().info("Launch zone: world=" + LAUNCH_WORLD + ", center=("
                 + LAUNCH_CENTER_X + ", " + LAUNCH_CENTER_Y + ", " + LAUNCH_CENTER_Z
                 + "), radius=" + LAUNCH_RADIUS);
+    }
+
+    // =====================================================================
+    // Command /coin
+    // =====================================================================
+
+    /**
+     * paper-plugin.yml unterstuetzt keine klassische commands-Sektion, daher
+     * wird /coin ueber das Brigadier-Lifecycle-Event registriert (der offizielle
+     * Weg fuer Paper 26.3). Das Event feuert auch nach /minecraft:reload erneut,
+     * der Command bleibt also immer registriert.
+     */
+    private void registerCommands() {
+        this.getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event ->
+                event.registrar().register(
+                        Commands.literal("coin")
+                                .executes(context -> {
+                                    if (!(context.getSource().getSender() instanceof Player player)) {
+                                        context.getSource().getSender().sendRichMessage(
+                                                "<red>Only players can use this command.</red>");
+                                        return 0;
+                                    }
+                                    giveCoin(player);
+                                    return Command.SINGLE_SUCCESS;
+                                })
+                                .build(),
+                        "Gives you one Server Coin (value: 1).",
+                        List.of()
+                ));
+    }
+
+    /**
+     * Gibt genau einen Server Coin. Bei vollem Inventar wird das Item sicher
+     * am Boden gedroppt statt verworfen zu werden.
+     */
+    private void giveCoin(Player player) {
+        HashMap<Integer, ItemStack> leftover = giveOrDrop(player, this.moneyItem.createCoin());
+        if (leftover.isEmpty()) {
+            player.sendRichMessage("<green>You received a Server Coin.</green>");
+        } else {
+            player.sendRichMessage("<green>You received a Server Coin.</green> "
+                    + "<gray>Your inventory was full - it dropped at your feet.</gray>");
+        }
     }
 
     @Override
@@ -560,7 +614,7 @@ public final class MC_Suvival extends JavaPlugin implements Listener {
         }
 
         if (SEND_MESSAGES) {
-            player.sendMessage("Spawn-Elytra aktiviert! Rechtsklick = Boost. Du hast "
+            player.sendMessage("Spawn-Elytra aktiviert! Linksklick = Boost. Du hast "
                     + MAX_BOOSTS + " Boosts.");
         }
     }
@@ -694,14 +748,19 @@ public final class MC_Suvival extends JavaPlugin implements Listener {
         player.getInventory().setChestplate(saved);
     }
 
-    private void giveOrDrop(Player player, ItemStack item) {
+    /**
+     * Fuegt das Item ins Inventar ein und droppt nicht Passendes natuerlich am
+     * Boden. Gibt zurueck, was NICHT ins Inventar gepasst hat (leer = alles rein).
+     */
+    private HashMap<Integer, ItemStack> giveOrDrop(Player player, ItemStack item) {
         if (item == null || item.getType() == Material.AIR) {
-            return;
+            return new HashMap<>();
         }
         HashMap<Integer, ItemStack> leftover = player.getInventory().addItem(item);
         for (ItemStack rest : leftover.values()) {
             player.getWorld().dropItemNaturally(player.getLocation(), rest);
         }
+        return leftover;
     }
 
     private void removeMarkedItems(PlayerInventory inv) {
